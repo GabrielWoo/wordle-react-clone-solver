@@ -1,7 +1,7 @@
 {
   "name": "wordle-react-clone",
   "version": "0.1.0",
-  "homepage": "https://jlumbroso.github.io/wordle-react-clone",
+  "homepage": "https://gabrielwoo.github.io/wordle-react-clone-solver/",
   "private": true,
   "dependencies": {
     "@testing-library/jest-dom": "^5.16.4",
@@ -33,7 +33,7 @@
     "rules": {
       "no-unused-vars": 0,
       "no-empty-pattern": 0,
-      "@typescript-eslint/no-unused-vars": 0 
+      "@typescript-eslint/no-unused-vars": 0
     }
   },
   "prettier": {
