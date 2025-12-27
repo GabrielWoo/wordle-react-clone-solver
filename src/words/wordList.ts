@@ -1,6 +1,6 @@
 ﻿const WORD_URLS = {
-  common: 'https://raw.githubusercontent.com/jlumbroso/wordle-react-clone/refs/heads/main/src/wordle-nytimes-acceptable-bank.txt',
-  allowed: 'https://raw.githubusercontent.com/jlumbroso/wordle-react-clone/refs/heads/main/src/wordle-nytimes-main-bank.txt'
+  common: 'https://raw.githubusercontent.com/GabrielWoo/wordle-react-clone-solver/refs/heads/main/src/words/common.txt',
+  allowed: 'https://raw.githubusercontent.com/GabrielWoo/wordle-react-clone-solver/refs/heads/main/src/words/main.txt'
 };
 
 async function generateWordSetFromWordBank(url: string): Promise<string[]> {
