@@ -1,161 +1,166 @@
-import {
-  createContext,
-  Dispatch,
-  SetStateAction,
-  useEffect,
-  useState,
-} from "react"
+﻿import React, { useState, useEffect, createContext, useContext } from "react";
+import { loadWordList } from "./words/wordList";
+import { SolverBoard } from "./components/SolverBoard";
+import { PossibleWords } from "./components/PossibleWords";
+import "./App.css";
 
-import "./App.css"
+type LetterStatus = "correct" | "almost" | "wrong";
+type Guess = { word: string; status: LetterStatus[] };
 
-import {
-  boardDefault,
-  boardStatusDefault,
-  computeGuessStatus,
-  generateAcceptableWordSet,
-  generateMainWordSet,
-  getRandomItemFromSet,
-  LetterStatus,
-} from "./helpers"
-import Board from "./components/Board"
-import Keyboard from "./components/Keyboard"
-import GameOver from "./components/GameOver"
-
-export interface IWordleGameContext {
-  board: string[][]
-  setBoard: Dispatch<SetStateAction<string[][]>>
-  boardStatus: LetterStatus[][]
-  setBoardStatus: Dispatch<SetStateAction<LetterStatus[][]>>
-  currAttempt: { attempt: number; letterPos: number }
-  setCurrAttempt: Dispatch<
-    SetStateAction<{ attempt: number; letterPos: number }>
-  >
-  onDelete: () => void
-  onEnter: () => void
-  onSelectLetter: (key: string) => void
-  correctWord: string
-  letterStatus: Map<string, LetterStatus>
-  setLetterStatus: Dispatch<SetStateAction<Map<string, LetterStatus>>>
-  gameOver: { gameOver: boolean; guessedWord: boolean }
-  setGameOver: Dispatch<
-    SetStateAction<{ gameOver: boolean; guessedWord: boolean }>
-  >
+interface SolverContextType {
+  guesses: Guess[];
+  addGuess: (guess: Guess) => void;
+  resetGuesses: () => void;
 }
 
-export const AppContext = createContext<IWordleGameContext>(
-  {} as IWordleGameContext
-)
+const SolverContext = createContext<SolverContextType | null>(null);
 
-function App() {
-  const [board, setBoard] = useState(boardDefault)
-  const [boardStatus, setBoardStatus] = useState(boardStatusDefault)
-  const [currAttempt, setCurrAttempt] = useState({
-    attempt: 0,
-    letterPos: 0,
-  })
-  const [wordSet, setWordSet] = useState(new Set())
-  const [letterStatus, setLetterStatus] = useState(new Map())
-  const [gameOver, setGameOver] = useState({
-    gameOver: false,
-    guessedWord: false,
-  })
+export function useSolver() {
+  const ctx = useContext(SolverContext);
+  if (!ctx) throw new Error("useSolver must be used within SolverProvider");
+  return ctx!;
+}
 
-  //const correctWord = "RIGHT";
-  const [correctWord, setCorrectWord] = useState("RIGHT")
+function SolverProvider({ children }: { children: React.ReactNode }) {
+  const [guesses, setGuesses] = useState<Guess[]>([]);
+  
+  const addGuess = (guess: Guess) => setGuesses(prev => [...prev, guess]);
+  const resetGuesses = () => setGuesses([]);
 
-  // generate set once (by empty deps)
-  useEffect(() => {
-    // this is the word bank of acceptable words
-    generateAcceptableWordSet().then((words) => {
-      setWordSet(words.wordSet)
-    })
-    // to make guesses easier, this is the word bank of "common" words
-    generateMainWordSet().then((wordsy) => {
-      setCorrectWord(getRandomItemFromSet(wordsy.wordSet))
-    })
-  }, [])
+  const value: SolverContextType = { guesses, addGuess, resetGuesses };
 
-  const onSelectLetter = (key: string) => {
-    if (currAttempt.letterPos >= 5) return
-    const newBoard = [...board]
-    newBoard[currAttempt.attempt][currAttempt.letterPos] = key
-    setBoard(newBoard)
-    setCurrAttempt({ ...currAttempt, letterPos: currAttempt.letterPos + 1 })
-  }
+  return (
+    <SolverContext.Provider value={value}>
+      {children}
+    </SolverContext.Provider>
+  );
+}
 
-  const onDelete = () => {
-    if (currAttempt.letterPos === 0) return
-    const newBoard = [...board]
-    newBoard[currAttempt.attempt][currAttempt.letterPos - 1] = ""
-    setBoard(newBoard)
-    setCurrAttempt({ ...currAttempt, letterPos: currAttempt.letterPos - 1 })
-  }
+function candidateMatches(candidate: string, guess: Guess): boolean {
+  const { word, status } = guess;
 
-  const onEnter = () => {
-    if (currAttempt.letterPos !== 5) return
-
-    let currWord = board[currAttempt.attempt].join("").toUpperCase()
-    if (!wordSet.has(currWord)) return alert("Word not found")
-
-    // compute the status of the letters
-    const newBoardStatus = [...boardStatus]
-    newBoardStatus[currAttempt.attempt] = computeGuessStatus(
-      currWord,
-      correctWord
-    )
-    setBoardStatus(newBoardStatus)
-
-    // defining here because it won't be refreshed after the setCurrAttempt
-    const nextAttemptCount = currAttempt.attempt + 1
-
-    setCurrAttempt({
-      attempt: nextAttemptCount,
-      letterPos: 0,
-    })
-
-    if (currWord === correctWord) {
-      setGameOver({
-        gameOver: true,
-        guessedWord: true,
-      })
-    } else if (nextAttemptCount === 6) {
-      setGameOver({
-        gameOver: true,
-        guessedWord: false,
-      })
+  // Green: exact position match
+  for (let i = 0; i < 5; i++) {
+    if (status[i] === "correct" && candidate[i] !== word[i]) {
+      return false;
     }
   }
 
-  return (
-    <div className="App">
-      <nav>
-        <h1>Wordle</h1>
-      </nav>
-      <AppContext.Provider
-        value={{
-          board,
-          setBoard,
-          boardStatus,
-          setBoardStatus,
-          currAttempt,
-          setCurrAttempt,
-          onDelete,
-          onEnter,
-          onSelectLetter,
-          correctWord,
-          letterStatus,
-          setLetterStatus,
-          gameOver,
-          setGameOver,
-        }}
-      >
-        <div className="game">
-          <Board />
-          {gameOver.gameOver ? <GameOver /> : <Keyboard />}
-        </div>
-      </AppContext.Provider>
-    </div>
-  )
+  // Yellow: present but wrong position
+  for (let i = 0; i < 5; i++) {
+    if (status[i] === "almost") {
+      if (candidate[i] === word[i]) return false; // wrong position
+      if (!candidate.includes(word[i])) return false; // must exist
+    }
+  }
+
+  // Gray: not present anywhere
+  for (let i = 0; i < 5; i++) {
+    if (status[i] === "wrong" && candidate.includes(word[i])) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
-export default App
+function filterCandidates(allWords: string[], guesses: Guess[]): string[] {
+  if (guesses.length === 0) return allWords;
+  return allWords.filter(w => guesses.every(g => candidateMatches(w, g)));
+}
+
+function GuessHistory() {
+  const { guesses } = useSolver();
+  
+  if (!guesses.length) {
+    return <p className="no-guesses">No guesses entered yet</p>;
+  }
+  
+  return (
+    <div className="history">
+      <h3>Previous Guesses</h3>
+      {guesses.map((g, i) => (
+        <div key={i} className="guess-row">
+          <span className="guess-word">{g.word.toUpperCase()}</span>
+          <div className="status-chips">
+            {g.status.map((s, j) => (
+              <span key={j} className={`chip ${s}`}>
+                {s === "correct" ? "🟩" : s === "almost" ? "🟨" : "⬜"}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AppContent() {
+  const { guesses, resetGuesses } = useSolver();
+  const [wordList, setWordList] = useState<string[]>([]);
+  const [possibleWords, setPossibleWords] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  
+  useEffect(() => {
+    loadWordList().then(words => {
+      console.log(`Loaded ${words.length} words`);
+      setWordList(words);
+      setPossibleWords(words); 
+      setLoading(false);
+    }).catch(err => {
+      console.error('Word list load failed:', err);
+      setLoading(false);
+    });
+  }, []);
+
+  // Filter when guesses change
+  useEffect(() => {
+    if (wordList.length === 0) return;
+    
+    const filtered = filterCandidates(wordList, guesses);
+    console.log(`Filtered to ${filtered.length} possible words`);
+    setPossibleWords(filtered);
+  }, [guesses, wordList]);
+
+  if (loading) {
+    return (
+      <div className="app loading">
+        <h1>🧩 Wordle Solver</h1>
+        <div className="loading-spinner">Contacting FBI...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      <header>
+        <h1>🧩 Wordle Solver</h1>
+        <p>
+          <strong>{wordList.length}</strong> total words | 
+          <strong> {possibleWords.length}</strong> possible matches
+        </p>
+      </header>
+
+      <main>
+        <SolverBoard />
+        <GuessHistory />
+        <PossibleWords words={possibleWords} />
+      </main>
+
+      <footer>
+        <button className="reset-btn" onClick={resetGuesses}>
+          Reset All
+        </button>
+      </footer>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <SolverProvider>
+      <AppContent />
+    </SolverProvider>
+  );
+}
